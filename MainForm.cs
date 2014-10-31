@@ -27,17 +27,26 @@ namespace xml_valid
         {
             XmlValid.errorsClear();
             result.Text = "";
-
-            xml = new XmlValid(ref field);
-            string[] response = xml.Errors;
-
-            log.Text = "Ошибок" + ((response.Length != 0) ? ": " + response.Length : " нет");
-            
-            for (int i = 0; i < response.Length; i++)
+            try
             {
-                result.Text += ">> " + response[i] + "\n";
+                xml = new XmlValid(ref field);
             }
-            XmlValid.fill(ref result, 0, result.Text.Length , Color.Red);
+            catch (Exception ex)
+            {
+                result.Text += "\nВсё оч плохо, рили ("+ex.Message+")";
+            }
+            finally
+            {
+                string[] response = xml.Errors;
+
+                log.Text = "Ошибок" + ((response.Length != 0) ? ": " + response.Length : " нет");
+
+                for (int i = 0; i < response.Length; i++)
+                {
+                    result.Text += ">> " + response[i] + "\n";
+                }
+                XmlValid.fill(ref result, 0, result.Text.Length, Color.Red);
+            }
         }
     }
 }

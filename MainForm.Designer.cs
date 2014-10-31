@@ -81,9 +81,9 @@
             this.Controls.Add(this.field);
             this.Controls.Add(this.log);
             this.Controls.Add(this.start);
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
             this.Name = "MainForm";
             this.Text = "Xml Valid";
-            this.Load += new System.EventHandler(this.formLoad);
             this.ResumeLayout(false);
             this.PerformLayout();
 

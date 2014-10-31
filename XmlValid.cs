@@ -26,9 +26,14 @@ namespace xml_valid
 
             string pattern = "(<\\w+[\\w\\s=\":\\?\\/\\\\.-]*[^\\/]>)|(<\\/\\w+>)";
             MatchCollection mc = Regex.Matches(field.Text, pattern);
+
             if (mc.Count == 0) return;
+
             root(ref field, mc[0].Value);
             validate(ref mc, 0, mc.Count - 1,ref field);
+
+            frame.addFrame(mc[0].Index,mc[mc.Count-1].Index);
+            other(ref field);
         }
         
         //Основная валидация
@@ -89,7 +94,7 @@ namespace xml_valid
             }
         }
 
-        //Проверка комментариев
+        //Комментарии
         private static int comments(ref RichTextBox field)
         {
             int i = 0;
@@ -97,7 +102,14 @@ namespace xml_valid
             {
                 int first = field.Text.IndexOf("<!--", i);
                 int last = field.Text.IndexOf("-->", first + 3);
-                if (first == -1) return 0;
+                if (first == -1)
+                {
+                    if (last != -1)
+                    {
+                        findedError(lineErr(ref field, last), "Лишний закрывающий тег комментария");
+                    }
+                    return 0;
+                }
                 if (last == -1)
                 {
                     fill(ref field, first, field.Text.Length, Color.Green);
@@ -139,6 +151,22 @@ namespace xml_valid
             return;
         }
 
+        //Поиск лишнего текста
+        private static void other(ref RichTextBox field)
+        {
+            string pattern = "^([\\w@.\\sА-я#!\\?\\/]*)";
+            int s = 0;
+
+            for (int i = 0; i < field.Lines.Length;i++ )
+            {
+                s += field.Lines[i].Length;
+                if (!frame.isInFrames(s) && Regex.IsMatch(field.Text,pattern))
+                {
+                    findedError(i, "Лишний текст в XML документе");
+                }
+            }
+        }
+
         //Перекраска
         private static void paint(ref RichTextBox field)
         {
@@ -157,6 +185,8 @@ namespace xml_valid
             //Первая строка
             if (firstLine(field.Text.Substring(0, (field.Text.IndexOf("\n")>0?field.Text.IndexOf("\n"):field.Text.Length))))
             {
+                frame.addFrame(0, (field.Text.IndexOf("\n") > 0 ? field.Text.IndexOf("\n") : field.Text.Length));
+
                 fill(ref field, 0, 2, Color.Red);
                 fill(ref field, 2, 3, Color.Blue);
                 fill(ref field, field.Text.LastIndexOf("?>"), 2, Color.Red);
@@ -226,7 +256,7 @@ namespace xml_valid
         private static void findedError(int line, string message)
         {
             Array.Resize(ref errors, errors.Length + 1);
-            errors[errors.Length - 1] =  "Reaction:  " + message+", Line:   " + line;
+            errors[errors.Length - 1] =  "Reaction:  " + message+", Line:   " + (line+1);
         }  
 
         //Массив ошибок
@@ -243,7 +273,7 @@ namespace xml_valid
             frame.clear();
         }
 
-        //Подсчёт строки с ошибкой
+        //Подсчёт строки по индексу
         public static int lineErr(ref RichTextBox field, int m)
         {
             int s = 0;

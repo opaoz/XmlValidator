@@ -19,6 +19,14 @@ namespace xml_valid
             frame[frame.GetLength(0) - 1, 1] = end;
         }
 
+        //Добавляем одну границу
+        public void addFrame(int line)
+        {
+            Resize(ref frame, frame.GetLength(0) + 1, 2);
+            frame[frame.GetLength(0) - 1, 0] = line;
+            frame[frame.GetLength(0) - 1, 1] = line;
+        }
+
         //Проверка нахождения в границах
         public bool isInFrames(int th)
         {
