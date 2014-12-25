@@ -11,9 +11,6 @@ namespace xml_valid
 {
     class XmlValid : MainForm
     {
-        //Цвет выделения ошибки
-        enum rarity {common = 1,uncommon, rare}
-
         //Массив ошибок
         private static string[] errors = new string[0];
         private static int[] closers = new int[0];
@@ -22,10 +19,17 @@ namespace xml_valid
         //Конструктор класса
         public XmlValid(ref RichTextBox field)
         {
-            paint(ref field);
-
-            string pattern = "(<\\w+[\\w\\s=\":\\?\\/\\\\.-]*[^\\/]>)|(<\\/\\w+>)";
+            string pattern = "(<\\s*[A-я]\\w+[\\w\\s=\":\\?\\/\\\\.-]*[^\\/]>)|(<\\/\\w+>)";
             MatchCollection mc = Regex.Matches(field.Text, pattern);
+            try
+            {
+                attributes(ref field, mc);
+            }
+            catch (Exception e)
+            {
+                field.Text += "\n"+e.Message;
+            }
+            paint(ref field);
 
             if (mc.Count == 0) return;
 
@@ -34,6 +38,7 @@ namespace xml_valid
 
             frame.addFrame(mc[0].Index,mc[mc.Count-1].Index);
             other(ref field);
+
         }
         
         //Основная валидация
@@ -60,10 +65,12 @@ namespace xml_valid
                 return;
             }
 
+            int first = Regex.Match(line, "[A-zА-я]").Index;
+            string newLine = "</" + line.Substring(first, ((line.IndexOf(" ", first) != -1) ? line.IndexOf(" ", first) : line.IndexOf(">")) - first) + ">";
             for (int i = start+1; i <= end; i++)
             {
                 string temp = match[i].Value;
-                if (("</" + line.Substring(1, ((line.IndexOf(" ") != -1) ? line.IndexOf(" ") : line.IndexOf(">")) - 1) + ">") == temp) 
+                if (newLine == temp) 
                 {
                     Array.Resize(ref closers, closers.Length + 1);
                     closers[closers.Length - 1] = i;
@@ -80,7 +87,7 @@ namespace xml_valid
                     return;
                 }
             }
-            findedError(lineErr(ref field, match[start].Index), "Не найден парный элемент для " + line.Substring(0, ((line.IndexOf(" ") != -1) ? line.IndexOf(" ") : line.IndexOf(">"))) + ">");
+            findedError(lineErr(ref field, match[start].Index), "Не найден парный элемент для " + newLine.Replace("/",""));
             validate(ref match, start+1, end,ref field);
         }
 
@@ -101,10 +108,11 @@ namespace xml_valid
             while (i != -1)
             {
                 int first = field.Text.IndexOf("<!--", i);
-                int last = field.Text.IndexOf("-->", first + 3);
+                int last = field.Text.IndexOf("-->", first + 4);
                 if (first == -1)
                 {
-                    if (last != -1)
+                    int next = field.Text.IndexOf("<!--", first + 4);
+                    if (last != -1 && last < next) 
                     {
                         findedError(lineErr(ref field, last), "Лишний закрывающий тег комментария");
                     }
@@ -119,7 +127,7 @@ namespace xml_valid
                     return lineErr(ref field, first);
                 }
                 frame.addFrame(first,last);
-                fill(ref field, first, last - first + 3, Color.Green);
+                fill(ref field, first, last - first + 4, Color.Green);
 
                 i = last + 3;
             }
@@ -154,7 +162,7 @@ namespace xml_valid
         //Поиск лишнего текста
         private static void other(ref RichTextBox field)
         {
-            string pattern = "^([\\w@.\\sА-я#!\\?\\/]*)";
+            string pattern = "^([\\w@.\\sА-я#!\\?\\/]+)";
             int s = 0;
 
             for (int i = 0; i < field.Lines.Length;i++ )
@@ -167,6 +175,32 @@ namespace xml_valid
             }
         }
 
+        //Аттрибуты
+        public static void attributes(ref RichTextBox field, MatchCollection match)
+        {
+            string pattern = "\\w[\\w:]*\\s*=\\s*\".+\"";
+            string openFull = "<\\w+[\\w\\s=\":\\?\\/\\\\.-]*[^\\/]>";
+            string tmp;
+
+            foreach (Match ma in match)
+            {
+                if(!Regex.IsMatch(ma.Value,openFull)) continue;
+                tmp = Regex.Replace(ma.Value, pattern,"");
+
+                if (tmp.IndexOf(" ") == -1) continue;
+
+                for (int i = tmp.IndexOf(" "); i <tmp.LastIndexOf(">") ; i++)
+                {
+                    if (!Regex.IsMatch(tmp[i]+"","\\s"))
+                    {
+                        findedError(lineErr(ref field, match[i].Index), "Проблемы с атрибутами в теге "+tmp);
+                        break;
+                    }
+                } 
+                tmp = "";
+            }
+        }
+
         //Перекраска
         private static void paint(ref RichTextBox field)
         {
@@ -174,7 +208,7 @@ namespace xml_valid
             fill(ref field, 0,  field.Text.Length, Color.Black);
 
             //Теги
-            string pattern = "(<\\w+\\s+)|(<\\w+>)|(</\\w+>)|(\">)|(/>)";
+            string pattern = "(<\\s*[A-zА-я]\\w+\\s+)|(<\\s*[A-zА-я]\\w+>)|(</\\w+>)|(\">)|(/>)";
             Regex regExp = new Regex(pattern);
 
             foreach (Match ma in regExp.Matches(field.Text))
@@ -183,7 +217,7 @@ namespace xml_valid
             }
 
             //Первая строка
-            if (firstLine(field.Text.Substring(0, (field.Text.IndexOf("\n")>0?field.Text.IndexOf("\n"):field.Text.Length))))
+            if (firstLine(field.Text.Substring(0, (field.Text.IndexOf("\n")>0?field.Text.IndexOf("\n"):field.Text.Length)),ref field))
             {
                 frame.addFrame(0, (field.Text.IndexOf("\n") > 0 ? field.Text.IndexOf("\n") : field.Text.Length));
 
@@ -192,17 +226,14 @@ namespace xml_valid
                 fill(ref field, field.Text.LastIndexOf("?>"), 2, Color.Red);
             }
 
-            //Аттрибуты
-            pattern = "[A-z0-9:!]+=\"";
-            regExp = new Regex(pattern);
-
-            foreach (Match ma in regExp.Matches(field.Text))
+            string att = "\\w[\\w:]*\\s*=\\s*\".+\"";
+            foreach (Match ma in Regex.Matches(field.Text, att))
             {
                 fill(ref field, ma.Index, ma.Length, Color.Red);
             }
 
             //Кавычки
-            int stop = comments(ref field);
+            int stop = comments(ref field);            
             int i = 0;
             while (i != -1)
             {
@@ -232,23 +263,40 @@ namespace xml_valid
         }
 
         //Первая строчка
-        private static bool firstLine(string line)
+        private static bool firstLine(string line, ref RichTextBox field)
         {
             //Проверка первой троки на валидность
-            string pattern = "<\\?xml\\s+version=(\"|\')\\d\\.\\d\\1(\\s+encoding=(\"|\')(utf-8|windows-1251|)\\3)?\\s*\\?>";
+            string pattern = "<\\?xml\\s+version=(\"|\')\\d\\.\\d\\1(\\s+encoding=(\"|\')(utf-8|windows-1251|)\\3)?\\s*";
+            string ending = "\\?>";
             Regex regExp = new Regex(pattern);
-            
+
+            if (regExp.IsMatch(line.ToLower()))
+            {
+                for (int i = 0; i < field.Lines.Length; i++)
+                {
+                    if (Regex.IsMatch(field.Lines[i].ToLower(), ending)) return true;
+
+                    if (Regex.IsMatch(field.Lines[i], "^\\s*\\w+"))
+                    {
+                        findedError(0, "Не описан заголовок XML документа");
+                        return false;
+                    }
+                }
+            }
 
             if (!regExp.IsMatch(line.ToLower()))
             {
-                findedError(1, "Не описан заголовок XML документа");
+                findedError(0, "Не описан заголовок XML документа");
                 return false;
             }
             if (regExp.Matches(line.ToLower()).Count > 1)
             {
-                findedError(1, "Заголовок документа должен быть только один");
+                findedError(0, "Заголовок документа должен быть только один");
                 return false;
             }
+
+            
+
             return true;
         }
 
